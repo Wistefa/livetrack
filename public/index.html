@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LiveTrack — Karte</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root {
+    --bg:     #0d1117;
+    --panel:  #161b22;
+    --border: #30363d;
+    --text:   #e6edf3;
+    --muted:  #8b949e;
+    --accent: #58a6ff;
+    --green:  #3fb950;
+    --red:    #f85149;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 16px;
+    height: 52px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .logo { font-size: 18px; font-weight: 700; letter-spacing: 2px; color: var(--accent); }
+  .logo span { color: var(--text); opacity: 0.5; font-weight: 400; }
+  .session-wrap {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-left: auto;
+  }
+  .session-label { font-size: 12px; color: var(--muted); }
+  #sessionInput {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    width: 130px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .btn {
+    background: var(--accent);
+    color: #000;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .btn:hover { opacity: 0.85; }
+  .btn-outline {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  .main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+  #map {
+    flex: 1;
+    z-index: 1;
+  }
+  .sidebar {
+    width: 260px;
+    background: var(--panel);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .sidebar-title {
+    padding: 12px 16px;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+  }
+  .participant-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+  }
+  .participant {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 16px;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .participant:hover { background: rgba(255,255,255,0.04); }
+  .dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .participant-name { flex: 1; font-size: 14px; }
+  .participant-info { font-size: 11px; color: var(--muted); }
+  .status-bar {
+    padding: 8px 16px;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--red); }
+  .status-dot.connected { background: var(--green); }
+  .share-block {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .share-label { font-size: 11px; color: var(--muted); letter-spacing: 1px; }
+  .share-url {
+    font-size: 11px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 5px 8px;
+    color: var(--accent);
+    word-break: break-all;
+    cursor: pointer;
+  }
+  .share-url:hover { border-color: var(--accent); }
+  .empty-state {
+    padding: 32px 16px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  /* Leaflet Marker Override */
+  .livetrack-marker {
+    width: 32px; height: 32px;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    border: 2px solid rgba(255,255,255,0.8);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .livetrack-marker span {
+    transform: rotate(45deg);
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+  }
+  .leaflet-popup-content-wrapper {
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  }
+  .leaflet-popup-tip { background: var(--panel); }
+  .popup-name { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+  .popup-info { font-size: 12px; color: var(--muted); line-height: 1.6; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">LIVE<span>TRACK</span></div>
+  <div class="session-wrap">
+    <span class="session-label">SESSION</span>
+    <input id="sessionInput" type="text" placeholder="CODE" maxlength="8" value="">
+    <button class="btn" onclick="joinSession()">BEITRETEN</button>
+    <button class="btn btn-outline" onclick="newSession()">NEU</button>
+  </div>
+</header>
+
+<div class="main">
+  <div id="map"></div>
+  <aside class="sidebar">
+    <div class="sidebar-title">TEILNEHMER</div>
+    <div class="participant-list" id="participantList">
+      <div class="empty-state">Noch keine Teilnehmer.<br>Teile den Tracker-Link<br>mit deiner Gruppe.</div>
+    </div>
+    <div class="share-block" id="shareBlock" style="display:none">
+      <div class="share-label">TRACKER-LINK (HANDY)</div>
+      <div class="share-url" id="trackerUrl" onclick="copyTrackerUrl()" title="Klicken zum Kopieren"></div>
+      <button class="btn btn-outline" style="font-size:12px" onclick="copyTrackerUrl()">LINK KOPIEREN</button>
+    </div>
+    <div class="status-bar">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusText">Nicht verbunden</span>
+    </div>
+  </aside>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const COLORS = ['#58a6ff','#3fb950','#f78166','#ffa657','#d2a8ff','#39d353','#ff7b72','#79c0ff'];
+let colorIndex = 0;
+
+// Karte initialisieren
+const map = L.map('map', { zoomControl: true }).setView([48.5, 9.0], 9);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap',
+  maxZoom: 19
+}).addTo(map);
+
+// State
+let ws = null;
+let sessionId = null;
+const participants = {};  // name → { marker, trail, color, lat, lng, ts }
+
+function generateSessionId() {
+  return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
+
+function newSession() {
+  document.getElementById('sessionInput').value = generateSessionId();
+  joinSession();
+}
+
+function joinSession() {
+  const val = document.getElementById('sessionInput').value.trim().toUpperCase();
+  if (!val) return;
+  if (ws) ws.close();
+  sessionId = val;
+  connect();
+}
+
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}`);
+
+  ws.onopen = () => {
+    setStatus(true, `Session ${sessionId}`);
+    ws.send(JSON.stringify({ type: 'join', sessionId, role: 'viewer' }));
+    document.getElementById('shareBlock').style.display = 'flex';
+    const url = `${location.origin}/track.html?s=${sessionId}`;
+    document.getElementById('trackerUrl').textContent = url;
+  };
+
+  ws.onmessage = e => {
+    const msg = JSON.parse(e.data);
+    if (msg.type === 'snapshot') {
+      for (const [name, loc] of Object.entries(msg.participants)) updateParticipant(name, loc);
+    } else if (msg.type === 'location') {
+      updateParticipant(msg.name, msg);
+    } else if (msg.type === 'left') {
+      removeParticipant(msg.name);
+    }
+  };
+
+  ws.onclose = () => setStatus(false, 'Verbindung getrennt — reconnect...');
+  ws.onerror = () => setStatus(false, 'Fehler');
+
+  // Reconnect
+  ws.onclose = () => {
+    setStatus(false, 'Reconnect in 3s...');
+    setTimeout(() => { if (sessionId) connect(); }, 3000);
+  };
+}
+
+function getColor(name) {
+  if (!participants[name]) {
+    participants[name] = { color: COLORS[colorIndex % COLORS.length] };
+    colorIndex++;
+  }
+  return participants[name].color;
+}
+
+function updateParticipant(name, loc) {
+  const color = getColor(name);
+  const latlng = [loc.lat, loc.lng];
+
+  if (!participants[name].marker) {
+    // Marker erstellen
+    const icon = L.divIcon({
+      className: '',
+      html: `<div class="livetrack-marker" style="background:${color}"><span>${name.charAt(0).toUpperCase()}</span></div>`,
+      iconSize: [32, 32],
+      iconAnchor: [16, 32],
+      popupAnchor: [0, -34]
+    });
+    const marker = L.marker(latlng, { icon }).addTo(map);
+    marker.bindPopup('');
+    participants[name].marker = marker;
+    participants[name].trail = L.polyline([latlng], { color, weight: 2, opacity: 0.6 }).addTo(map);
+  } else {
+    participants[name].marker.setLatLng(latlng);
+    participants[name].trail.addLatLng(latlng);
+  }
+
+  participants[name].lat = loc.lat;
+  participants[name].lng = loc.lng;
+  participants[name].ts  = loc.ts;
+  participants[name].acc = loc.acc;
+
+  // Popup aktualisieren
+  const age   = Math.round((Date.now() - loc.ts) / 1000);
+  const speed = loc.speed != null ? ` · ${(loc.speed * 3.6).toFixed(1)} km/h` : '';
+  participants[name].marker.getPopup().setContent(`
+    <div class="popup-name" style="color:${color}">${name}</div>
+    <div class="popup-info">
+      ${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)}<br>
+      Genauigkeit ±${Math.round(loc.acc || 0)} m${speed}<br>
+      vor ${age < 60 ? age + 's' : Math.round(age/60) + 'min'}
+    </div>
+  `);
+
+  renderList();
+}
+
+function removeParticipant(name) {
+  if (participants[name]?.marker) {
+    map.removeLayer(participants[name].marker);
+    map.removeLayer(participants[name].trail);
+  }
+  delete participants[name];
+  renderList();
+}
+
+function renderList() {
+  const list = document.getElementById('participantList');
+  const names = Object.keys(participants);
+  if (!names.length) {
+    list.innerHTML = '<div class="empty-state">Noch keine Teilnehmer.<br>Teile den Tracker-Link<br>mit deiner Gruppe.</div>';
+    return;
+  }
+  list.innerHTML = names.map(name => {
+    const p = participants[name];
+    const age = p.ts ? Math.round((Date.now() - p.ts) / 1000) : '?';
+    const ageStr = age < 60 ? `${age}s` : `${Math.round(age/60)}min`;
+    return `<div class="participant" onclick="flyTo('${name}')">
+      <div class="dot" style="background:${p.color}"></div>
+      <div class="participant-name">${name}</div>
+      <div class="participant-info">±${Math.round(p.acc||0)}m · ${ageStr}</div>
+    </div>`;
+  }).join('');
+}
+
+function flyTo(name) {
+  const p = participants[name];
+  if (p?.lat) { map.flyTo([p.lat, p.lng], 16); p.marker?.openPopup(); }
+}
+
+function setStatus(ok, text) {
+  document.getElementById('statusDot').className = 'status-dot' + (ok ? ' connected' : '');
+  document.getElementById('statusText').textContent = text;
+}
+
+function copyTrackerUrl() {
+  const url = document.getElementById('trackerUrl').textContent;
+  navigator.clipboard.writeText(url).then(() => {
+    document.getElementById('trackerUrl').textContent = '✓ Kopiert!';
+    setTimeout(() => document.getElementById('trackerUrl').textContent = url, 2000);
+  });
+}
+
+// URL-Parameter auslesen
+const urlParams = new URLSearchParams(location.search);
+if (urlParams.get('s')) {
+  document.getElementById('sessionInput').value = urlParams.get('s').toUpperCase();
+  joinSession();
+}
+
+// Teilnehmerliste periodisch aktualisieren (Zeitstempel)
+setInterval(renderList, 15000);
+</script>
+</body>
+</html>

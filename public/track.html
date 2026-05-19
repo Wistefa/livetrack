@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>LiveTrack — Tracker</title>
+<style>
+  :root {
+    --bg:     #0d1117;
+    --panel:  #161b22;
+    --border: #30363d;
+    --text:   #e6edf3;
+    --muted:  #8b949e;
+    --accent: #58a6ff;
+    --green:  #3fb950;
+    --red:    #f85149;
+    --orange: #ffa657;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 20px;
+  }
+  .logo { font-size: 22px; font-weight: 700; letter-spacing: 3px; color: var(--accent); margin-bottom: 4px; }
+  .logo span { color: var(--text); opacity: 0.5; font-weight: 400; }
+  .subtitle { font-size: 12px; color: var(--muted); letter-spacing: 1px; margin-bottom: 40px; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px 24px;
+    width: 100%;
+    max-width: 360px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .field label { font-size: 11px; color: var(--muted); letter-spacing: 1px; display: block; margin-bottom: 6px; }
+  .field input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 12px 14px;
+    border-radius: 8px;
+    font-size: 16px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .field input:focus { border-color: var(--accent); }
+  .btn-start {
+    background: var(--green);
+    color: #000;
+    border: none;
+    padding: 14px;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: opacity 0.2s;
+    min-height: 50px;
+  }
+  .btn-start:hover { opacity: 0.85; }
+  .btn-start:disabled { opacity: 0.4; cursor: default; }
+  .btn-stop {
+    background: var(--red);
+    color: #fff;
+    border: none;
+    padding: 14px;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 1px;
+    display: none;
+    min-height: 50px;
+  }
+
+  .status-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    width: 100%;
+    max-width: 360px;
+    margin-top: 12px;
+    display: none;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .status-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+  }
+  .status-key { color: var(--muted); }
+  .status-val { font-weight: 600; }
+  .live-dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--red);
+    margin-right: 6px;
+    animation: pulse 1.5s infinite;
+  }
+  .live-dot.active { background: var(--green); }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+  .error-msg {
+    color: var(--red);
+    font-size: 13px;
+    text-align: center;
+    display: none;
+  }
+  .session-badge {
+    text-align: center;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 2px;
+  }
+  .session-badge strong { color: var(--accent); font-size: 18px; display: block; letter-spacing: 4px; }
+</style>
+</head>
+<body>
+
+<div class="logo">LIVE<span>TRACK</span></div>
+<div class="subtitle">GPS TRACKER</div>
+
+<div class="card" id="setupCard">
+  <div class="session-badge">
+    SESSION<strong id="sessionDisplay">—</strong>
+  </div>
+  <div class="field">
+    <label>DEIN NAME</label>
+    <input id="nameInput" type="text" placeholder="z.B. Stefan" maxlength="20" autocomplete="off">
+  </div>
+  <div class="error-msg" id="errorMsg"></div>
+  <button class="btn-start" id="btnStart" onclick="startTracking()">TRACKING STARTEN</button>
+  <button class="btn-stop" id="btnStop" onclick="stopTracking()">TRACKING STOPPEN</button>
+</div>
+
+<div class="status-card" id="statusCard">
+  <div class="status-row">
+    <span class="status-key">STATUS</span>
+    <span class="status-val"><span class="live-dot" id="liveDot"></span><span id="statusText">Verbinde...</span></span>
+  </div>
+  <div class="status-row">
+    <span class="status-key">KOORDINATEN</span>
+    <span class="status-val" id="coordText">—</span>
+  </div>
+  <div class="status-row">
+    <span class="status-key">GENAUIGKEIT</span>
+    <span class="status-val" id="accText">—</span>
+  </div>
+  <div class="status-row">
+    <span class="status-key">GESCHWINDIGKEIT</span>
+    <span class="status-val" id="speedText">—</span>
+  </div>
+  <div class="status-row">
+    <span class="status-key">SENDUNGEN</span>
+    <span class="status-val" id="countText">0</span>
+  </div>
+</div>
+
+<script>
+const params    = new URLSearchParams(location.search);
+const sessionId = (params.get('s') || '').toUpperCase();
+
+document.getElementById('sessionDisplay').textContent = sessionId || 'KEIN CODE';
+
+let ws        = null;
+let watchId   = null;
+let sendCount = 0;
+let reconnectTimer = null;
+
+function showError(msg) {
+  const el = document.getElementById('errorMsg');
+  el.textContent = msg;
+  el.style.display = msg ? 'block' : 'none';
+}
+
+function startTracking() {
+  const name = document.getElementById('nameInput').value.trim();
+  if (!name) { showError('Bitte Namen eingeben.'); return; }
+  if (!sessionId) { showError('Kein Session-Code in der URL.'); return; }
+  if (!navigator.geolocation) { showError('GPS wird von diesem Browser nicht unterstützt.'); return; }
+  showError('');
+
+  document.getElementById('btnStart').style.display = 'none';
+  document.getElementById('btnStop').style.display  = 'block';
+  document.getElementById('nameInput').disabled = true;
+  document.getElementById('statusCard').style.display = 'flex';
+
+  connect(name);
+
+  watchId = navigator.geolocation.watchPosition(
+    pos => sendLocation(pos),
+    err => showStatusText(`GPS-Fehler: ${err.message}`),
+    { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+  );
+}
+
+function connect(name) {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}`);
+
+  ws.onopen = () => {
+    ws.send(JSON.stringify({ type: 'join', sessionId, role: 'tracker', name }));
+    setLive(true);
+    showStatusText('Sendet...');
+  };
+
+  ws.onclose = () => {
+    setLive(false);
+    showStatusText('Getrennt — reconnect...');
+    if (watchId !== null) {
+      reconnectTimer = setTimeout(() => connect(name), 3000);
+    }
+  };
+
+  ws.onerror = () => setLive(false);
+}
+
+function sendLocation(pos) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({
+    type:  'location',
+    lat:   pos.coords.latitude,
+    lng:   pos.coords.longitude,
+    acc:   pos.coords.accuracy,
+    speed: pos.coords.speed,
+    ts:    Date.now()
+  }));
+  sendCount++;
+  document.getElementById('coordText').textContent =
+    `${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`;
+  document.getElementById('accText').textContent = `±${Math.round(pos.coords.accuracy)} m`;
+  document.getElementById('speedText').textContent =
+    pos.coords.speed != null ? `${(pos.coords.speed * 3.6).toFixed(1)} km/h` : '—';
+  document.getElementById('countText').textContent = sendCount;
+}
+
+function stopTracking() {
+  if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'stop' }));
+    ws.close();
+  }
+  document.getElementById('btnStop').style.display  = 'none';
+  document.getElementById('btnStart').style.display = 'block';
+  document.getElementById('nameInput').disabled = false;
+  document.getElementById('statusCard').style.display = 'none';
+  setLive(false);
+  showStatusText('Gestoppt');
+  sendCount = 0;
+}
+
+function setLive(active) {
+  document.getElementById('liveDot').className = 'live-dot' + (active ? ' active' : '');
+}
+
+function showStatusText(t) {
+  document.getElementById('statusText').textContent = t;
+}
+</script>
+</body>
+</html>
